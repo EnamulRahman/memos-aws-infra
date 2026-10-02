@@ -1,0 +1,25 @@
+FROM golang:1.25-alpine
+WORKDIR /build
+
+RUN apk add --no-cache git ca-certificates tzdata nodejs npm && \
+    npm install --global pnpm@10.24.0
+
+COPY app/go.mod app/go.sum ./
+RUN go mod download
+COPY app/ ./
+
+RUN cd web && pnpm install --frozen-lockfile && pnpm release
+
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
+    -tags netgo,osusergo -o /usr/local/bin/memos ./cmd/memos
+
+RUN addgroup -S -g 1001 appuser && \
+    adduser -S -D -u 1001 -G appuser appuser && \
+    mkdir -p /var/opt/memos && \
+    chown appuser:appuser /var/opt/memos
+
+WORKDIR /var/opt/memos
+ENV MEMOS_PORT=8081 MEMOS_DATA=/var/opt/memos
+USER 1001:1001
+EXPOSE 8081
+ENTRYPOINT ["memos"]
