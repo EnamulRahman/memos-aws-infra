@@ -4,6 +4,8 @@ resource "aws_security_group" "alb" {
   description = "Security group for ALB"
   vpc_id      = var.vpc_id
 
+  # Public HTTP is required to redirect visitors to HTTPS.
+  # tfsec:ignore:aws-ec2-no-public-ingress-sgr
   ingress {
     description = "allow HTTP from internet"
     from_port   = 80
@@ -12,6 +14,8 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Public HTTPS is required for visitors to access Memos.
+  # tfsec:ignore:aws-ec2-no-public-ingress-sgr
   ingress {
     description = "allow HTTPS from internet"
     from_port   = 443
