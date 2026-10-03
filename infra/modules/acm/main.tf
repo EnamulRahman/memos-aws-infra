@@ -36,7 +36,3 @@ resource "aws_acm_certificate_validation" "this" {
   ]
 }
 
-variable "zone_id" {
-  description = "Route53 hosted zone ID used for ACM DNS validation records"
-  type        = string
-}
