@@ -1,14 +1,17 @@
-# ECS Cluster
+# Basic ECS metrics are sufficient for this portfolio project.
+# Container Insights is disabled to avoid additional monitoring costs.
+# tfsec:ignore:aws-ecs-enable-container-insight
 resource "aws_ecs_cluster" "this" {
   name = "${var.project_name}-cluster"
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 }
 
-# CloudWatch Log Group
+# Accept default encryption to avoid customer-managed KMS costs.
+# tfsec:ignore:aws-cloudwatch-log-group-customer-key
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${var.project_name}"
   retention_in_days = 7
@@ -44,7 +47,7 @@ resource "aws_ecs_task_definition" "this" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${var.project_name}"
+          "awslogs-group"         = aws_cloudwatch_log_group.this.name
           "awslogs-region"        = "eu-west-1"
           "awslogs-stream-prefix" = "ecs"
         }
