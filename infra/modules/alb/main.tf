@@ -1,9 +1,10 @@
 resource "aws_lb" "this" {
-  name               = "${var.project_name}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [var.security_group]
-  subnets            = var.public_subnets
+  name                       = "${var.project_name}-alb"
+  internal                   = false
+  load_balancer_type         = "application"
+  drop_invalid_header_fields = true
+
+  # Keep your existing security_groups, subnets and tags
 
   tags = {
     Name = "${var.project_name}-alb"
