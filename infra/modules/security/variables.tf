@@ -19,12 +19,3 @@ variable "tags" {
   default     = {}
 }
 
-variable "private_subnet_cidrs" {
-  description = "Private subnet ranges containing ECS tasks"
-  type        = list(string)
-}
-
-variable "private_subnet_cidrs" {
-  description = "Private subnet ranges containing ECS tasks"
-  type        = list(string)
-}
