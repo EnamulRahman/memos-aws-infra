@@ -1,3 +1,7 @@
+Here's your README in the exact same format you sent:
+
+---
+
 # Memos on AWS ECS Fargate
 
 A self-hosted deployment of [Memos](https://github.com/usememos/memos) on AWS ECS Fargate, provisioned with Terraform and deployed via GitHub Actions CI/CD.
@@ -14,10 +18,8 @@ graph TD
     ALB -->|Port 8081| ECS["ECS Fargate\nmemos-cluster\nmemos-service"]
     ECS --> ECR["ECR\nDocker Image"]
     ECS --> CW["CloudWatch Logs\n/ecs/memos"]
-    
-    GHA["GitHub Actions\nbuild.yml + deploy.yml"] -->|Push image| ECR
-    GHA -->|terraform apply| Infra["Terraform\nS3 Backend + DynamoDB Lock"]
-    
+    GHA["GitHub Actions\nbuild.yml + deploy.yml + destroy.yml"] -->|Push image| ECR
+    GHA -->|terraform apply| Infra["Terraform\nS3 Backend + S3 Native Locking"]
     subgraph VPC ["VPC 10.0.0.0/16"]
         subgraph Public ["Public Subnets (eu-west-1a/1b)"]
             ALB
@@ -28,12 +30,9 @@ graph TD
     end
 ```
 
-
 ## Docker Image Optimisation
 
-I compared single-stage and multi-stage builds of the same
-application source, targeting linux/amd64 and using the same
-Go compilation flags.
+I compared single-stage and multi-stage builds of the same application source, targeting linux/amd64 and using the same Go compilation flags.
 
 | Build type | Disk usage | Content size |
 |---|---:|---:|
@@ -42,21 +41,17 @@ Go compilation flags.
 
 The multi-stage image uses approximately 97.3% less disk space.
 
-The single-stage image retains the compilers, source code and
-build dependencies. The multi-stage build separates frontend
-compilation, backend compilation and runtime packaging. Its
-final image contains the compiled application, embedded frontend
-assets and runtime dependencies.
+The single-stage image retains the compilers, source code and build dependencies. The multi-stage build separates frontend compilation, backend compilation and runtime packaging. Its final image contains the compiled application, embedded frontend assets and runtime dependencies.
 
-Measurements were taken using `docker images memos`.
-Percentages are approximate because the displayed sizes are rounded.
-Node.js is supplied by different base distributions in the two builds.
+Measurements were taken using `docker images memos`. Percentages are approximate because the displayed sizes are rounded. Node.js is supplied by different base distributions in the two builds.
 
 To reproduce:
 
+```
 docker build --platform linux/amd64 -t memos:multi-stage .
 docker build --platform linux/amd64 -f Dockerfile.single-stage -t memos:single-stage .
 docker images memos
+```
 
 ## Infrastructure Overview
 
@@ -68,7 +63,7 @@ docker images memos
 | Load Balancer | Application Load Balancer |
 | TLS | AWS Certificate Manager |
 | DNS | Route 53 |
-| State Backend | S3 + DynamoDB locking |
+| State Backend | S3 with native locking |
 | IaC | Terraform (modular) |
 | CI/CD | GitHub Actions with OIDC |
 
@@ -85,27 +80,53 @@ infra/
     ├── ecs/        # Cluster, task definition, service
     ├── alb/        # ALB, target group, listeners
     ├── ecr/        # Container registry
-    ├── acm/        # TLS certificate
+    ├── acm/        # TLS certificate + Route53 validation
     ├── iam/        # Execution and task roles
-    └── security/   # Security groups
+    └── security/   # Security groups (separate ingress/egress resources)
+```
+
+### Bootstrap
+
+One-time setup managed separately in `bootstrap/`:
+
+```
+bootstrap/
+├── provider.tf   # AWS provider, no remote backend
+├── state.tf      # S3 bucket for Terraform state
+└── oidc.tf       # GitHub Actions OIDC provider + IAM role
+```
+
+Run once before anything else:
+```
+cd bootstrap
+terraform init
+terraform apply
 ```
 
 ---
 
 ## CI/CD Pipeline
 
-Two separate GitHub Actions workflows:
+Three separate GitHub Actions workflows:
 
 ### `build.yml` — Build and Push
-- Triggers on push to `main` or manual `workflow_dispatch`
-- Authenticates to AWS via **OIDC** (no static keys)
-- Builds Docker image and tags with Git SHA
-- Pushes to ECR
+
+* Triggers on push to `main` when app code or Dockerfile changes
+* Authenticates to AWS via **OIDC** (no static keys)
+* Builds Docker image and tags with Git SHA
+* Pushes to ECR
 
 ### `deploy.yml` — Deploy and Verify
-- Triggers automatically when `build.yml` completes
-- Runs `terraform fmt`, `validate`, `plan`, `apply`
-- Waits 60s then hits `/healthz` — fails pipeline if unhealthy
+
+* Triggers automatically when `build.yml` completes successfully
+* Runs `terraform fmt`, `validate`, `plan`, `apply`
+* Waits 60s then hits `/healthz` — fails pipeline if unhealthy
+
+### `destroy.yml` — Tear Down
+
+* Manual trigger only (`workflow_dispatch`)
+* Runs `terraform destroy` to remove all infrastructure
+* Never triggered automatically — requires deliberate human action
 
 ### Required GitHub Secret
 | Name | Description |
@@ -151,68 +172,47 @@ Two separate GitHub Actions workflows:
 ## How to Reproduce
 
 ### Prerequisites
-- AWS CLI configured
-- Terraform >= 1.6.0
-- Docker
-- A registered domain in Route 53
+
+* AWS CLI configured with appropriate permissions
+* Terraform >= 1.10.0
+* Docker
+* A registered domain in Route 53
 
 ### 1. Clone the repo
-```bash
-git clone https://github.com/EnamulRahman/ECS-Project.git
-cd ECS-Project
+
+```
+git clone https://github.com/EnamulRahman/memos-aws-infra.git
+cd memos-aws-infra
 ```
 
-### 2. Create S3 backend
-```bash
-aws s3api create-bucket \
-  --bucket your-terraform-state-bucket \
-  --region eu-west-1 \
-  --create-bucket-configuration LocationConstraint=eu-west-1
-
-aws s3api put-bucket-versioning \
-  --bucket your-terraform-state-bucket \
-  --versioning-configuration Status=Enabled
-
-aws dynamodb create-table \
-  --table-name terraform-locks \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
+### 2. Run bootstrap
+Creates the S3 state bucket, OIDC provider, and GitHub Actions IAM role:
+```
+cd bootstrap
+terraform init
+terraform apply
 ```
 
 ### 3. Update variables
 Edit `infra/terraform.tfvars` with your domain, region, and bucket name.
 
 ### 4. Deploy infrastructure
-```bash
+
+```
 cd infra
 terraform init
 terraform apply
 ```
 
-### 5. Set up OIDC for GitHub Actions
-```bash
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com \
-  --thumbprint-list ffffffffffffffffffffffffffffffffffffffff
-
-aws iam create-role \
-  --role-name github-actions-role \
-  --assume-role-policy-document file://oidc-trust-policy.json
-
-aws iam attach-role-policy \
-  --role-name github-actions-role \
-  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
-```
-
-Add `AWS_ROLE_ARN` to GitHub repository secrets.
+### 5. Add GitHub secret
+Add `AWS_ROLE_ARN` to your GitHub repository secrets with the ARN of the IAM role created by bootstrap.
 
 ### 6. Push to main
-Any push to `main` will trigger the full build and deploy pipeline.
+Any push to `main` that touches app code or the Dockerfile triggers the full build and deploy pipeline automatically.
 
 ### 7. Tear down
-```bash
+
+```
 cd infra
 terraform destroy
 ```
@@ -221,8 +221,13 @@ terraform destroy
 
 ## Key Design Decisions
 
-- **Fargate over EC2** — no server management, scales to zero
-- **Private subnets for ECS** — containers not directly internet accessible, traffic only via ALB
-- **OIDC over static keys** — no long-lived AWS credentials stored in GitHub
-- **Modular Terraform** — each layer isolated and independently manageable
-- **Multi-stage Dockerfile** — separate frontend (Node/pnpm) and backend (Go) build stages for smaller final image
+* **Fargate over EC2** — no server management, scales to zero
+* **Private subnets for ECS** — containers not directly internet accessible, traffic only via ALB
+* **OIDC over static keys** — no long-lived AWS credentials stored in GitHub
+* **Modular Terraform** — each layer isolated and independently manageable
+* **Multi-stage Dockerfile** — separate frontend (Node/pnpm) and backend (Go) build stages, reducing image size by 97%
+* **Non-root container** — app runs as a non-root user inside the container for security
+* **Bootstrap separation** — ECR, S3 state bucket and OIDC setup live outside the main infra so they persist across destroy cycles
+* **S3 native locking** — no DynamoDB table needed, uses S3's built-in lock mechanism
+* **Path-filtered pipeline** — build only triggers on application code changes, not README edits
+* **Security scanning** — tfsec/Checkov scans Terraform before apply to catch misconfigurations
