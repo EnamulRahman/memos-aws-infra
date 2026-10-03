@@ -1,3 +1,8 @@
+# Public ALB is required for the website; ECS tasks remain private.
+# tfsec:ignore:aws-elb-alb-not-public
+
+
+
 resource "aws_lb" "this" {
   name                       = "${var.project_name}-alb"
   internal                   = false
