@@ -27,6 +27,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Scan Terraform security
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infra
+          version: v1.28.14
+          additional_args: --tfvars-file infra/terraform.tfvars
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
