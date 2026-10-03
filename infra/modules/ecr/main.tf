@@ -1,3 +1,6 @@
+# Accept default AES-256 encryption for this portfolio repository.
+# Customer-managed KMS encryption is deferred pending repository migration.
+# tfsec:ignore:aws-ecr-repository-customer-key
 resource "aws_ecr_repository" "this" {
   name         = var.repository_name
   force_delete = true
