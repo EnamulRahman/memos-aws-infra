@@ -25,6 +25,7 @@ module "acm" {
 
   project_name = var.project_name
   domain_name  = var.domain_name
+  zone_id      = data.aws_route53_zone.main.zone_id
 }
 
 module "alb" {
@@ -71,7 +72,8 @@ module "ecs" {
 }
 
 data "aws_route53_zone" "main" {
-  name = var.domain_name
+  name         = var.domain_name
+  private_zone = false
 }
 
 resource "aws_route53_record" "app" {
