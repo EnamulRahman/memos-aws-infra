@@ -1,4 +1,4 @@
-# ALB sg
+# ALB security group
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-${var.environment}-alb-sg"
   description = "Security group for ALB"
@@ -25,11 +25,11 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
-    description = "allow all outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow Memos traffic and health checks"
+    from_port   = 8081
+    to_port     = 8081
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
   }
 
   tags = merge(var.tags, {
@@ -37,7 +37,7 @@ resource "aws_security_group" "alb" {
   })
 }
 
-# ECS sg
+# ECS security group
 resource "aws_security_group" "ecs" {
   name        = "${var.project_name}-${var.environment}-ecs-sg"
   description = "Security group for ECS service"
