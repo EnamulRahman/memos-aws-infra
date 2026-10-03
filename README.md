@@ -31,18 +31,32 @@ graph TD
 
 ## Docker Image Optimisation
 
-The app is built using a multi-stage Dockerfile to keep the production 
-image as small as possible.
+I compared single-stage and multi-stage builds of the same
+application source, targeting linux/amd64 and using the same
+Go compilation flags.
 
-| Build type   | Image size |
-|--------------|------------|
-| Single stage | ~2GB       |
-| Multi-stage  | ~50MB      |
+| Build type | Disk usage | Content size |
+|---|---:|---:|
+| Single-stage | 2.79 GB | 633 MB |
+| Multi-stage | 75.8 MB | 19.7 MB |
 
-The single stage figure includes Node.js, pnpm, the Go compiler, and all 
-build tools. The final image contains only the compiled binary and 
-runtime dependencies.
----
+The multi-stage image uses approximately 97.3% less disk space.
+
+The single-stage image retains the compilers, source code and
+build dependencies. The multi-stage build separates frontend
+compilation, backend compilation and runtime packaging. Its
+final image contains the compiled application, embedded frontend
+assets and runtime dependencies.
+
+Measurements were taken using `docker images memos`.
+Percentages are approximate because the displayed sizes are rounded.
+Node.js is supplied by different base distributions in the two builds.
+
+To reproduce:
+
+docker build --platform linux/amd64 -t memos:multi-stage .
+docker build --platform linux/amd64 -f Dockerfile.single-stage -t memos:single-stage .
+docker images memos
 
 ## Infrastructure Overview
 
