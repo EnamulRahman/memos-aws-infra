@@ -7,18 +7,10 @@ terraform {
       version = "~> 5.0"
     }
   }
-
-  backend "s3" {
-    bucket       = "memos-terraform-state-enamul"
-    key          = "prod/terraform.tfstate"
-    region       = "eu-west-1"
-    encrypt      = true
-    use_lockfile = true
-  }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "eu-west-1"
 
   default_tags {
     tags = {
