@@ -51,12 +51,15 @@ resource "aws_security_group" "ecs" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  egress {
-    description = "allow all outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+   egress {
+    description = "Allow outbound HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+
+    # HTTPS via NAT is needed for ECR, S3 image layers and CloudWatch.
+    # Public destinations remain allowed; private endpoints are not configured.
+    cidr_blocks = ["0.0.0.0/0"] # tfsec:ignore:aws-ec2-no-public-egress-sgr
   }
 
   tags = merge(var.tags, {
