@@ -1,15 +1,13 @@
-# Public ALB is required for the website; ECS tasks remain private.
-# tfsec:ignore:aws-elb-alb-not-public
-
-
-
 resource "aws_lb" "this" {
-  name                       = "${var.project_name}-alb"
-  internal                   = false
+  name = "${var.project_name}-alb"
+
+  # Public access is required for visitors to reach Memos.
+  internal = false # tfsec:ignore:aws-elb-alb-not-public
+
   load_balancer_type         = "application"
   drop_invalid_header_fields = true
-
-  # Keep your existing security_groups, subnets and tags
+  security_groups           = [var.security_group]
+  subnets                   = var.public_subnets
 
   tags = {
     Name = "${var.project_name}-alb"
@@ -35,7 +33,7 @@ resource "aws_lb_target_group" "this" {
   }
 }
 
-# HTTP → HTTPS redirect
+# Redirect HTTP traffic to HTTPS.
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
@@ -43,6 +41,7 @@ resource "aws_lb_listener" "http" {
 
   default_action {
     type = "redirect"
+
     redirect {
       port        = "443"
       protocol    = "HTTPS"
@@ -51,12 +50,11 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# HTTPS listener
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
-  ssl_policy = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.certificate_arn
 
   default_action {
