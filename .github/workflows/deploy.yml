@@ -30,7 +30,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      - name: Scan Terraform security
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infra
+          version: v1.28.14
+          additional_args: --tfvars-file infra/terraform.tfvars
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -39,13 +44,21 @@ jobs:
 
       - name: Set image URL
         id: image
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag || github.event.workflow_run.head_sha }}
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          TAG=${{ github.event.inputs.image_tag || github.event.workflow_run.head_sha }}
-          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-            TAG="latest"
+          if [[ ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "A full 40-character commit SHA is required."
+            exit 1
           fi
-          echo "url=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${TAG}" >> $GITHUB_OUTPUT
+
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+          aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$IMAGE_TAG" > /dev/null
+
+          echo "url=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
