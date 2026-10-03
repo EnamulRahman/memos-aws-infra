@@ -6,7 +6,7 @@ resource "aws_ecr_repository" "this" {
     scan_on_push = true
   }
 
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   tags = var.tags
 }
