@@ -9,9 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "ECR image tag (SHA) to deploy"
-        required: false
-        default: "latest"
+        description: "Full commit SHA of an existing ECR image"
+        required: true
 
 env:
   AWS_REGION: eu-west-1
