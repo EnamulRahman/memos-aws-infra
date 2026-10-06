@@ -1,6 +1,3 @@
-Here's your README in the exact same format you sent:
-
----
 
 # Memos on AWS ECS Fargate
 
