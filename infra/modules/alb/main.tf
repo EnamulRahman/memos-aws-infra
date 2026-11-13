@@ -6,8 +6,8 @@ resource "aws_lb" "this" {
 
   load_balancer_type         = "application"
   drop_invalid_header_fields = true
-  security_groups           = [var.security_group]
-  subnets                   = var.public_subnets
+  security_groups            = [var.security_group]
+  subnets                    = var.public_subnets
 
   tags = {
     Name = "${var.project_name}-alb"
