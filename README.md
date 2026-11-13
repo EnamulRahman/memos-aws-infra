@@ -128,7 +128,8 @@ Three separate GitHub Actions workflows:
 ### Required GitHub Secret
 | Name | Description |
 |------|-------------|
-| `AWS_ROLE_ARN` | ARN of the IAM role with OIDC trust policy |
+| `AWS_BUILD_ROLE_ARN` | Build role: can only push to the `memos` ECR repository (used by `build.yml`) |
+| `AWS_ROLE_ARN` | Deploy role: Terraform permissions for this project only (used by `deploy.yml` and `destroy.yml`) |
 
 ---
 
@@ -202,7 +203,7 @@ terraform apply
 ```
 
 ### 5. Add GitHub secret
-Add `AWS_ROLE_ARN` to your GitHub repository secrets with the ARN of the IAM role created by bootstrap.
+Add `AWS_BUILD_ROLE_ARN` and `AWS_ROLE_ARN` to your GitHub repository secrets, using the `build_role_arn` and `deploy_role_arn` outputs from bootstrap.
 
 ### 6. Push to main
 Any push to `main` that touches app code or the Dockerfile triggers the full build and deploy pipeline automatically.
@@ -228,3 +229,4 @@ terraform destroy
 * **S3 native locking** — no DynamoDB table needed, uses S3's built-in lock mechanism
 * **Path-filtered pipeline** — build only triggers on application code changes, not README edits
 * **Security scanning** — tfsec/Checkov scans Terraform before apply to catch misconfigurations
+* **Least privilege** — GitHub Actions uses two OIDC roles instead of `AdministratorAccess`. The build role can only push to the `memos` ECR repository. The deploy role is limited to the services this project uses and to `memos-*` IAM roles. Both trust only the `main` branch of this repo.
