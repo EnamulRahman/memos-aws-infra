@@ -38,10 +38,9 @@ module "alb" {
   certificate_arn = module.acm.certificate_arn
 }
 
-module "ecr" {
-  source = "./modules/ecr"
-
-  repository_name = var.repository_name
+# Created and owned by the bootstrap stack so it survives destroy.
+data "aws_ecr_repository" "this" {
+  name = var.repository_name
 }
 
 module "iam" {
@@ -58,7 +57,7 @@ module "ecs" {
   private_subnet_ids    = module.vpc.private_subnets
   ecs_security_group_id = module.security.ecs_security_group_id
 
-  image_url = var.image_url != "" ? var.image_url : module.ecr.repository_url
+  image_url = var.image_url != "" ? var.image_url : data.aws_ecr_repository.this.repository_url
 
   container_port = 8081
   cpu            = 256
